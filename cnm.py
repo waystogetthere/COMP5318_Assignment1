@@ -6,6 +6,12 @@ import matplotlib
 matplotlib.use("TkAgg")
 from matplotlib import pyplot as plt
 
+import seaborn as sns
+
+sns.set_style('darkgrid')
+
+import random
+
 with h5py.File('images_training.h5', 'r') as H:
     data = np.copy(H['data'])
 with h5py.File('labels_training.h5', 'r') as H:
@@ -29,13 +35,21 @@ class BP_network(object):
     def __init__(self):
         # 784 node in input layer
         # 1
-        self.w1 = 2 * np.random.randn(784, 256) * 0.01  # (784, 256)
-        self.w2 = 2 * np.random.randn(256, 64) * 0.01  # (256, 64)
-        self.w3 = 2 * np.random.randn(64, 10) * 0.01  # (64, 10)
+        self.w1 = np.random.randn(784, 256) * np.sqrt(2 / 784)
+        self.w2 = np.random.randn(256, 128) * np.sqrt(2 / 256)
+        self.w3 = np.random.randn(128, 10) * np.sqrt(2 / 128)
 
-        self.b1 = 2 * np.random.randn(batch_sz, 256) * 0.01  # (batch_sz, 256)
-        self.b2 = 2 * np.random.randn(batch_sz, 64) * 0.01  # (batch_sz, 64)
-        self.b3 = 2 * np.random.randn(batch_sz, 10) * 0.01  # (batch_sz, 10)
+        self.b1 = np.zeros([1, 256])
+        self.b2 = np.zeros([1, 128])
+        self.b3 = np.zeros([1, 10])
+
+        # self.w1 = 2 * np.random.randn(784, 256) * 0.01  # (784, 256)
+        # self.w2 = 2 * np.random.randn(256, 64) * 0.01  # (256, 64)
+        # self.w3 = 2 * np.random.randn(64, 10) * 0.01  # (64, 10)
+
+        # self.b1 = 2 * np.random.randn(1, 256) * 0.01  # (batch_sz, 256)
+        # self.b2 = 2 * np.random.randn(1, 64) * 0.01  # (batch_sz, 64)
+        # self.b3 = 2 * np.random.randn(1, 10) * 0.01  # (batch_sz, 10)
 
     def ReLu(self, x):
         x[x < 0] = 0
@@ -56,13 +70,17 @@ class BP_network(object):
 
         the net is:
         x1 = ReLu(x0w1)
-        x2 = softmax(x1w2)
+        x2 = ReLu(x1w2)
+        x3 = softmax(x2w3)
 
         '''
         self.x0 = input_data.reshape(batch_sz, 784)  # (batch_sz , 784)
         self.x1 = self.ReLu(np.array(np.dot(self.x0, self.w1) + self.b1, dtype=np.float32))  # (batch_sz, 256)
         self.x2 = self.ReLu(np.array(np.dot(self.x1, self.w2) + self.b2, dtype=np.float32))
         self.x3 = self.softmax(np.array(np.dot(self.x2, self.w3) + self.b3, dtype=np.float32))  # (batch_sz , 10)
+        # self.x1 = self.ReLu(np.array(np.dot(self.x0, self.w1), dtype=np.float32))  # (batch_sz, 256)
+        # self.x2 = self.ReLu(np.array(np.dot(self.x1, self.w2), dtype=np.float32))
+        # self.x3 = self.softmax(np.array(np.dot(self.x2, self.w3), dtype=np.float32))  # (batch_sz , 10)
 
         predict = np.argmax(self.x3, axis=1)  # 预测标签值
         s = predict - input_label  # 与真实标签值做对比
@@ -116,14 +134,14 @@ class BP_network(object):
         d_na_x3[np.arange(batch_sz), input_label] -= 1
 
         dw3 = self.x2.T.dot(d_na_x3)
-        db3 = d_na_x3.copy()
+        db3 = np.sum(d_na_x3.copy(), axis=0)
 
         dx2 = d_na_x3.dot(self.w3.T)
         ReLu2 = self.x2.copy()
         ReLu2[ReLu2 < 0] = 0
         ReLu2[ReLu2 > 0] = 1
         d_na_x2 = dx2 * ReLu2
-        db2 = d_na_x2.copy()
+        db2 = np.sum(d_na_x2.copy(), axis=0)
 
         dw2 = self.x1.T.dot(d_na_x2)
 
@@ -132,7 +150,7 @@ class BP_network(object):
         ReLu1[ReLu1 < 0] = 0
         ReLu1[ReLu1 > 0] = 1
         d_na_x1 = dx1 * ReLu1
-        db1 = d_na_x1.copy()
+        db1 = np.sum(d_na_x1.copy(), axis=0)
 
         dw1 = self.x0.T.dot(d_na_x1)
 
@@ -169,57 +187,57 @@ class BP_network(object):
 if __name__ == '__main__':
 
     # batch size, learning rate, max iteration
-    batch_sz = 25
-    lr = 0.01
-    max_iter = 10000
+    batch_sz = 30
+    lr = 0.001
+    max_iter = 40000
     NN = BP_network()
 
-    # 瞎jb做的数据预处理
+    # define the train set and pre-process
     data = np.array(data, dtype=float)
+    train_data = data
+    train_label = label
+    train_data -= np.mean(train_data, axis=0)
+    train_data /= np.std(train_data, axis=0)
 
-    # 定义测试数据集
-    train_data = data[:25000]
-    train_label = label[:25000]
-
-    # mean = np.mean(train_data, axis=0)
-    # std = np.std(train_data, axis=0)
-
-    # print(np.min(std))
-    # print(mean.shape)
-    train_data -= 128
-    train_data /= 255
-
-    # 对 validation set做预处理
+    # define the validation set and pre-process
     data_test = np.array(data_test, dtype=float)
     data_test = data_test.reshape(5000, 784)
-    data_test -= 128
-    data_test /= 255
+    data_test -= np.mean(data_test, axis=0)
+    data_test /= np.std(data_test, axis=0)
     data_labeled = data_test[0:2000]
-    # data_labeled = data[25000:]
-    # label_test = label[25000:]
 
-    # 定义一会plot loss 的横纵坐标,由于每训练一百次才记录一个loss，所以x也是max_iter/100
-    x = np.arange(max_iter / 100)
+    # 定义一会plot train loss, train acc, test loss, test acc 的横纵坐标
+    x = np.arange((batch_sz * max_iter) / train_data.shape[0])
     train_loss = np.array([])
     train_acc = np.array([])
+    test_acc = np.array([])
+    test_loss = np.array([])
 
     # 定义momentum初始值
     vw_iter = np.zeros(3)
     print(vw_iter)
     vb_iter = np.zeros(3)
-    #
 
     # list_x = np.linspace(0, max_iter, num=max_iter / 100)
     # print(list_x.shape)
-    test_acc = np.array([])
-    test_loss = np.array([])
+
+    mu = 0
+    sigma = 0.01
 
     for iters in range(max_iter):
         # shuffle it!
-        if iters % 1000 == 0: # every 1000 iterations, the whole train set has been processed once
+        if iters % (train_data.shape[0] / batch_sz) == 0:
+            '''
+            every (train_data.shape[0] / batch_sz) iterations, 
+            the whole train set has been processed once, which was called an "epoch"
+            '''
             inds = np.random.permutation(train_data.shape[0])
             train_data = train_data[inds]
             train_label = train_label[inds]
+
+            if (1 + iters * batch_sz / train_data.shape[0]) in (20,30):
+                lr /= 10
+            print("epoch: " + str(1 + iters * batch_sz / train_data.shape[0]) + " the lr: " + str(lr))
 
         # NOW select the batch
         st_idx = int((iters % (train_data.shape[0] / batch_sz)) * batch_sz)
@@ -227,33 +245,34 @@ if __name__ == '__main__':
         input_data = train_data[st_idx: ed_idx]
         input_label = train_label[st_idx: ed_idx]
 
+        # add gaussian noise
+        for i in input_data:
+            i += random.gauss(mu, sigma)
+
         # forward propagation
         outcome, train_accuracy, output_error = NN.forward_prop(input_data, input_label)
-        if iters % 100 == 0:
+
+        if iters % (train_data.shape[0] / batch_sz) == 0:
+            # for every epoch, we output the train acc and loss
             train_acc = np.append(train_acc, train_accuracy)
             train_loss = np.append(train_loss, (np.mean(np.abs(output_error))))
-            print("the train accuracy is: " + str(train_accuracy))
-            print("The train loss is %f" % (np.mean(np.abs(output_error))))
+            print("train accuracy: " + str(train_accuracy) + "  train loss: " + str(np.mean(np.abs(output_error))))
 
         # new_vw_iter, new_vb_iter = NN.bp_with_momentum(vw_iter, vb_iter, input_label)
         NN.bp(input_label)
 
-        if iters % 100 == 0:
+        if iters % (train_data.shape[0] / batch_sz) == 0:
+            # for every epoch, we output the test acc and loss
             acc, Loss = NN.have_a_try(data_labeled, label_test)
             test_acc = np.append(test_acc, acc)
             test_loss = np.append(test_loss, (np.mean(np.abs(Loss))))
-            print("the test accuracy is: " + str(acc))
-            print("The test Loss is %f" % (np.mean(np.abs(Loss))))
+            print("test accuracy : " + str(acc) + "  test Loss: " + str(np.mean(np.abs(Loss))))
 
-        # vw_iter = new_vw_iter
-        # vb_iter = new_vb_iter
+            # vw_iter = new_vw_iter
+            # vb_iter = new_vb_iter
 
-    # plt.plot(x, y)
-    # print(list_acc)
-    # print(list_loss)
-
-    # sns.set_style('darkgrid')
-
+            # sns.set_style('darkgrid')
+    plt.ylim(0, 2)
     plt.subplot(211)
     plt.plot(x, train_acc, x, train_loss)
     plt.subplot(212)
