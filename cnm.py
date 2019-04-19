@@ -24,31 +24,38 @@ with h5py.File('labels_testing_2000.h5', 'r') as H:
 
 print(data_test.shape)
 dropout_p = 0.4
-R_P = 0.3
+R_P = 0.5
 batch_sz = 100
-lr = 0.001
+lr = 0.02
 max_iter = 12000
 
+xigema = pow(10, -7)
 
-decay_rate = 0.9
 
 
 # print(data.shape)
 
 
 class BP_network(object):
-    # The network is like:
-    #    l0 -> w1 -> l1 -> w2 -> (l2 == y?)
+
     def __init__(self):
         # 784 node in input layer
         # 1
-        self.w1 = np.random.randn(784, 256) * np.sqrt(2 / 784)
-        self.w2 = np.random.randn(256, 128) * np.sqrt(2 / 256)
-        self.w3 = np.random.randn(128, 10) * np.sqrt(2 / 128)
+        self.w1 = np.random.randn(784, 512) * np.sqrt(2 / 784)
+        self.w2 = np.random.randn(512, 256) * np.sqrt(2 / 512)
+        self.w3 = np.random.randn(256, 10) * np.sqrt(2 / 256)
 
-        self.b1 = np.zeros([1, 256])
-        self.b2 = np.zeros([1, 128])
+        self.b1 = np.zeros([1, 512])
+        self.b2 = np.zeros([1, 256])
         self.b3 = np.zeros([1, 10])
+
+        self.r1 = 0
+        self.r2 = 0
+        self.r3 = 0
+
+        self.r1_b = 0
+        self.r2_b = 0
+        self.r3_b = 0
 
         self.m1_b = 0
         self.m2_b = 0
@@ -152,7 +159,8 @@ class BP_network(object):
         d_na_x3 = self.x3.copy()
         d_na_x3[np.arange(batch_sz), input_label] -= 1
 
-        dw3 = self.x2.T.dot(d_na_x3) + (R_P / batch_sz) * self.w3
+        dw3 = (self.x2.T.dot(d_na_x3) + (2 * R_P) * self.w3)
+
         db3 = np.sum(d_na_x3.copy(), axis=0)
 
         dx2 = d_na_x3.dot(self.w3.T)
@@ -162,7 +170,7 @@ class BP_network(object):
         d_na_x2 = dx2 * ReLu2
         db2 = np.sum(d_na_x2.copy(), axis=0)
 
-        dw2 = self.x1.T.dot(d_na_x2) + (R_P / batch_sz) * self.w2
+        dw2 = (self.x1.T.dot(d_na_x2) + (2 * R_P) * self.w2)
 
         # dx1 = d_na_x2.dot(self.w2.T)
         dx1 = d_na_x2.dot(self.w2.T)
@@ -181,12 +189,9 @@ class BP_network(object):
         d_na_x1 = dx1 * ReLu1
         db1 = np.sum(d_na_x1.copy(), axis=0)
 
-        dw1 = self.x0.T.dot(d_na_x1) + (R_P / batch_sz) * self.w1
+        dw1 = (self.x0.T.dot(d_na_x1) + (2 * R_P) * self.w1)
 
-        # self.r1 += dw1 * dw1
-        # self.r2 += dw2 * dw2
-        # self.r3 += dw3 * dw3
-
+        '''
         self.m1 = decay_rate * self.m1 + (1 - decay_rate) * dw1
         self.m2 = decay_rate * self.m2 + (1 - decay_rate) * dw2
         self.m3 = decay_rate * self.m3 + (1 - decay_rate) * dw3
@@ -197,11 +202,8 @@ class BP_network(object):
 
         self.w3 -= lr * self.m3 / (0.001 + np.sqrt(self.v3))
         self.w2 -= lr * self.m2 / (0.001 + np.sqrt(self.v2))
-        self.w1 -= lr * self.m1 / (0.001 + np.sqrt(self.v1))
-        # self.w3 -= lr * (1 / (xigema + np.sqrt(self.r3))) * dw3
-        # self.w2 -= lr * (1 / (xigema + np.sqrt(self.r2))) * dw2
-        # self.w1 -= lr * (1 / (xigema + np.sqrt(self.r1))) * dw1
-
+        self.w1 -= lr * self.m1 / (0.001 + np.sqrt(self.v1)) 
+        
         self.m1_b = decay_rate * self.m1_b + (1 - decay_rate) * db1
         self.m2_b = decay_rate * self.m2_b + (1 - decay_rate) * db2
         self.m3_b = decay_rate * self.m3_b + (1 - decay_rate) * db3
@@ -212,12 +214,36 @@ class BP_network(object):
 
         self.b3 -= lr * self.m3_b / (0.001 + np.sqrt(self.v3_b))
         self.b2 -= lr * self.m2_b / (0.001 + np.sqrt(self.v2_b))
-        self.b1 -= lr * self.m1_b / (0.001 + np.sqrt(self.v1_b))
+        self.b1 -= lr * self.m1_b / (0.001 + np.sqrt(self.v1_b))    
+        '''
+
+        dw1 /= batch_sz
+        dw2 /= batch_sz
+        dw3 /= batch_sz
+        db1 /= batch_sz
+        db2 /= batch_sz
+        db3 /= batch_sz
+
+        self.r1 += dw1 * dw1
+        self.r2 += dw2 * dw2
+        self.r3 += dw3 * dw3
+
+        self.w3 -= lr * (1 / (xigema + np.sqrt(self.r3))) * dw3
+        self.w2 -= lr * (1 / (xigema + np.sqrt(self.r2))) * dw2
+        self.w1 -= lr * (1 / (xigema + np.sqrt(self.r1))) * dw1
+
+        self.r1_b += db1 * db1
+        self.r2_b += db2 * db2
+        self.r3_b += db3 * db3
+
+        self.b3 -= lr * (1 / (xigema + np.sqrt(self.r3_b))) * db3
+        self.b2 -= lr * (1 / (xigema + np.sqrt(self.r2_b))) * db2
+        self.b1 -= lr * (1 / (xigema + np.sqrt(self.r1_b))) * db1
 
     def have_a_try(self, input_data, input_label):
-        x1 = self.ReLu(np.dot(input_data, self.w1))
-        x2 = self.ReLu(np.dot(x1, self.w2))
-        x3 = self.softmax(np.dot(x2, self.w3))
+        x1 = self.ReLu(np.dot(input_data, self.w1) + self.b1)
+        x2 = self.ReLu(np.dot(x1, self.w2) + self.b2)  # + self.b2
+        x3 = self.softmax(np.dot(x2, self.w3) + self.b3)  # + self.b3
 
         predict = np.argmax(x3, axis=1)  # 预测标签值
         s = predict - input_label  # 与真实标签值做对比
@@ -227,7 +253,8 @@ class BP_network(object):
 
         probability = x3[np.arange(input_data.shape[0]), input_label]
 
-        Loss = -np.log(probability)  # + np.sum(np.abs(self.w1)) + np.sum(np.abs(self.w2)) + np.sum(np.abs(self.w3))
+        Loss = -np.log(probability)
+        # + np.sum(np.abs(self.w1)) + np.sum(np.abs(self.w2)) + np.sum(np.abs(self.w3))
 
         return accuracy, Loss
 
@@ -298,15 +325,17 @@ if __name__ == '__main__':
         # NOW select the batch
         st_idx = int((iters % (train_data.shape[0] / batch_sz)) * batch_sz)
         ed_idx = st_idx + batch_sz
-        input_data = train_data[st_idx: ed_idx]
-        input_label = train_label[st_idx: ed_idx]
+        input_data = train_data[st_idx: ed_idx].copy()
+        input_label = train_label[st_idx: ed_idx].copy()
 
         # add gaussian noise
-        for i in input_data:
-            i += random.gauss(mu, sigma)
+        for i in np.arange(input_data.shape[0]):
+            input_data[i] += random.gauss(mu, sigma)
 
         # forward propagation
         outcome, train_accuracy, output_error = NN.forward_prop(input_data, input_label)
+        # train_acc = np.append(train_acc, train_accuracy)
+        # train_loss = np.append(train_loss, (np.mean(np.abs(output_error))))
 
         if iters % (train_data.shape[0] / batch_sz) == 0:
             # for every epoch, we output the train acc and loss
