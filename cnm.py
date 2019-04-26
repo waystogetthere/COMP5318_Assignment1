@@ -20,7 +20,7 @@ with h5py.File('labels_training.h5', 'r') as H:
 with h5py.File('images_testing.h5', 'r') as H:
     data_test = np.copy(H['data'])
 with h5py.File('labels_testing_2000.h5', 'r') as H:
-    label_test = np.copy(H['label'])
+    label_validation = np.copy(H['label'])
 
 '''
 define the hyper-parameter:
@@ -147,13 +147,9 @@ class BP_network(object):
             predict = np.argmax(x3, axis=1)  # the prediction
             s = predict - input_label  # compared with ground truth
             num = np.sum(1 for i in s if i == 0)  # calculate the number of correct prediction
-
             accuracy = num / input_data.shape[0]  # calculate the accuracy
-
             probability = x3[np.arange(input_data.shape[0]), input_label]
-
             Loss = -np.log(probability)
-
             return accuracy, Loss
         else:
             predict = np.argmax(x3, axis=1)  # the prediction
@@ -177,14 +173,14 @@ if __name__ == '__main__':
     data_test = data_test.reshape(5000, 784)
     data_test -= np.mean(data_test, axis=0)
     data_test /= np.std(data_test, axis=0)
-    data_labeled = data_test[0:2000]
+    data_validation = data_test[0:2000]
 
-    # define the x-axis y-axis for plotting the train loss, train acc, test loss, test acc
-    x = np.arange((batch_sz * max_iter) / train_data.shape[0])
-    train_loss = np.array([])
-    train_acc = np.array([])
-    test_acc = np.array([])
-    test_loss = np.array([])
+    # define the x-axis and y-axis for plotting train loss, train acc, test loss, test acc VS epoch
+    x = np.arange((batch_sz * max_iter) / train_data.shape[0])  # x-axis
+    TL = np.array([])  # train loss
+    TA = np.array([])  # train accuracy
+    VL = np.array([])  # validation loss
+    VA = np.array([])  # validation accuracy
 
     for iters in range(max_iter):
         # shuffle it at every beginning of each epoch
@@ -220,23 +216,22 @@ if __name__ == '__main__':
 
         if iters % (train_data.shape[0] / batch_sz) == 0:
             # for every epoch, we output the train acc and loss
-            train_accuracy, output_error = NN.have_a_try(train_data, train_label)
-            train_acc = np.append(train_acc, train_accuracy)
-            train_loss = np.append(train_loss, (np.mean(np.abs(output_error))))
-            print("train accuracy: " + str(train_accuracy) + "  train loss: " + str(np.mean(np.abs(output_error))))
+            t_accuracy, t_Loss = NN.have_a_try(train_data, train_label)
+            TA = np.append(TA, t_accuracy)
+            TL = np.append(TL, (np.mean(np.abs(t_Loss))))
+            print("train accuracy: " + str(t_accuracy) + "  train loss: " + str((np.mean(np.abs(t_Loss)))))
 
-        if iters % (train_data.shape[0] / batch_sz) == 0:
-            # for every epoch, we output the test acc and loss
-            acc, Loss = NN.have_a_try(data_labeled, label_test)
-            test_acc = np.append(test_acc, acc)
-            test_loss = np.append(test_loss, (np.mean(np.abs(Loss))))
-            print("test accuracy : " + str(acc) + "  test Loss: " + str(np.mean(np.abs(Loss))))
+            # for every epoch, we output the validation acc and loss
+            v_accuracy, v_Loss = NN.have_a_try(data_validation, label_validation)
+            VA = np.append(VA, v_accuracy)
+            VL = np.append(VL, (np.mean(np.abs(v_Loss))))
+            print("test accuracy : " + str(v_accuracy) + "  test Loss: " + str(np.mean(np.abs(v_Loss))))
 
     plt.ylim(0, 2)
     plt.subplot(211)
-    plt.plot(x, train_acc, x, train_loss)
+    plt.plot(x, TA, x, TL)
     plt.subplot(212)
-    plt.plot(x, test_acc, x, test_loss)
+    plt.plot(x, VA, x, VL)
     plt.show()
 
     test_prediction = NN.have_a_try(data_test)
